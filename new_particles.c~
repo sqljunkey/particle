@@ -1,0 +1,327 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<math.h>
+#include<time.h>
+#include<sys/time.h>
+#include<string.h>
+#inlcude "random_particle.h"
+
+typedef struct{
+  
+  double x;
+  double y;
+  double z;
+  double mass;
+
+}particle;
+
+
+typedef struct{
+
+  
+  double x;
+  double y;
+  double z;
+  
+}momentum;
+
+
+
+particle * particles =NULL;
+momentum ** momentum_layers = NULL;
+particle global_particle;
+particle shifted_particle;
+
+
+
+void create_particles(int num_particles){
+
+
+  if(particles!=NULL){
+    free(particles);
+  }
+
+  particles = malloc(sizeof(particle) * num_particles);
+  if(particles==NULL){
+
+     fprintf(stderr, "Memory allocation failed\n");
+      exit(EXIT_FAILURE); 
+  }
+
+}
+
+void init_particles(int num_particles, int patches){
+
+    for(int i=0; i < num_particles; i++){
+
+    particles[i].id = i+3;
+    particles[i].x =-1000.0+ truncated_normal(0.0, 100.0);
+    particles[i].y = 1000.0+ truncated_normal(0.0, 100.0);
+    particles[i].z = 0.0+ truncated_normal(0.0, 100.0);
+    
+    particles[i].mass = 1.0;
+   
+
+    
+  }
+
+
+}
+
+void reset_global(){
+
+  global_particle.id=1;
+
+  global_particle.x =0.0;
+  global_particle.y =0.0;
+  global_particle.z =0.0;
+
+
+  global_particle.mass = 0.0;
+
+}
+
+
+void calculate_global(){
+
+  reset_global();
+  
+  for(int i=0;i< num_particles;i++){
+
+    global_particle.x +=particles[i].x;
+    global_particle.y +=particles[i].y;
+    global_particle.z +=particles[i].z;
+    
+   
+    global_particle.mass +=particles[i].mass;
+  }
+  
+}
+
+
+double newton_potential(double distance, double cutoff) {
+  double newton = 0.0;
+
+    if (distance > cutoff) {
+
+	newton = 1.0 / pow(distance,2.0);
+
+	}
+
+
+  return newton;
+}
+
+
+double lennard_jones_potential(double distance) {
+
+		double lj_pot_1 = 0.0;
+		double lj_pot_2 = 0.0;
+		double diff = 1E1;
+
+		double epsilon = 1.1;
+		double sigma = 10.0;
+
+		lj_pot_1 = epsilon * (pow((sigma / (distance - diff)), 2.0) - 2.0 * pow((sigma / (distance - diff)), 1.0));
+		lj_pot_2 = epsilon * (pow((sigma / (distance)), 2.0) - 2.0 * pow((sigma / (distance)), 1.0));
+
+		if(distance >30.0) {
+		  
+		        return (lj_pot_2 - lj_pot_1);
+
+		} else {
+			return 0.0;
+		}
+}
+
+
+double get_distance(particle a, particle b) {
+		
+
+     double distance_x = -a.x + (b.x);
+     double distance_y = -a.y + (b.y);
+     double distance_z = -a.z + (b.z);
+
+     double distance = sqrt( (
+			        pow(distance_x, 2.0)
+			      + pow(distance_y, 2.0)
+			      + pow(distance_z, 2.0)));
+
+     
+     return distance; 
+		
+}
+
+double* get_vector(particle a, particle b) {
+    
+    double* vector = (double*)malloc(3 * sizeof(double));
+    if (vector == NULL) {
+        
+        return NULL;
+    }
+
+   
+    double dX = -(a.x) + (b.x);
+    double dY = -(a.y) + (b.y);
+    double dZ = -(a.z) + (b.z);
+
+    
+    vector[0] = dX;
+    vector[1] = dY;
+    vector[2] = dZ;
+
+    return vector;
+}
+
+
+void update_particle_location(particle* p , momentum * m, double speed) {
+
+    p->x = p->x + m->x * speed;
+    p->y = p->y + m->y * speed;
+    p->z = p->z + m->z * speed;
+
+}
+
+
+void update_particle_momentum( momentum*  m,double* vector, double potential, double decay_ratio, double speed) {
+  
+  m->x = m->x * decay_ratio + (vector[0] * speed * potential);
+  m->y = m->y * decay_ratio + (vector[1] * speed * potential);
+  m->z = m->z * decay_ratio + (vector[2] * speed * potential);
+
+   
+}
+
+
+int send_message(){
+
+        char *final_response = NULL; 
+        char resp[] = "HTTP/1.0 200 OK\r\n"
+                  "Server: webserver-c\r\n"
+        "Content-type: text/html\r\n\r\n";
+
+    	int valwrite = -1;
+
+
+	final_response = concat_strings(resp, "<html>");
+	char *temp = final_response; 
+	final_response = concat_strings(final_response, run_command(command, uri+1));
+	free(temp);
+	temp= final_response;
+       	final_response = concat_strings(final_response, "</html>");
+	free(temp);
+
+
+	  
+	printf("%s\n", final_response);
+	
+        valwrite = write(newsockfd, final_response, strlen(final_response));
+
+	return valwrite;
+
+
+}
+
+
+
+int main(){
+
+    size_t PORT = 9000;
+    char * command = argv[1];
+    
+    char buffer[BUFFER_SIZE];
+
+
+ 
+
+    
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("webserver (socket)");
+        return 1;
+    }
+    printf("socket created successfully\n");
+
+    
+    struct sockaddr_in host_addr;
+    int host_addrlen = sizeof(host_addr);
+
+    host_addr.sin_family = AF_INET;
+    host_addr.sin_port = htons(PORT);
+    host_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+   
+    struct sockaddr_in client_addr;
+    int client_addrlen = sizeof(client_addr);
+
+    
+    if (bind(sockfd, (struct sockaddr *)&host_addr, host_addrlen) != 0) {
+        perror("webserver (bind)");
+        return 1;
+    }
+    printf("socket successfully bound to address\n");
+
+    
+    if (listen(sockfd, SOMAXCONN) != 0) {
+        perror("webserver (listen)");
+        return 1;
+    }
+    printf("server listening for connections\n");
+
+    for (;;) {
+        
+        int newsockfd = accept(sockfd, (struct sockaddr *)&host_addr,
+                               (socklen_t *)&host_addrlen);
+        if (newsockfd < 0) {
+            perror("webserver (accept)");
+            continue;
+        }
+        printf("connection accepted\n");
+
+        
+        int sockn = getsockname(newsockfd, (struct sockaddr *)&client_addr,
+                                (socklen_t *)&client_addrlen);
+        if (sockn < 0) {
+            perror("webserver (getsockname)");
+            continue;
+        }
+
+        
+        int valread = read(newsockfd, buffer, BUFFER_SIZE);
+        if (valread < 0) {
+            perror("webserver (read)");
+            continue;
+        }
+
+        
+        char method[BUFFER_SIZE], uri[BUFFER_SIZE], version[BUFFER_SIZE];
+        sscanf(buffer, "%s %s %s", method, uri, version);
+        printf("[%s:%u] %s %s %s\n", inet_ntoa(client_addr.sin_addr),
+	       ntohs(client_addr.sin_port), method, version, uri);
+
+
+	if(strstr(uri, "crt_signal")==0){
+	  printf("crt signal\n");
+
+	}
+
+	
+	if (valwrite < 0) {
+            perror("webserver (write)");
+            continue;
+        }
+	
+
+        close(newsockfd);
+    }
+
+    return 0;
+
+
+
+
+
+
+
+
+}

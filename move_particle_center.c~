@@ -1,0 +1,131 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
+typedef struct {
+    int *neighbor_ids;
+    size_t num_neighbors;
+    int id;
+    double *dimensions;
+    size_t num_dimensions;
+} Particle;
+
+typedef struct {
+    Particle *particles;
+    size_t num_particles;
+} ParticleSystem;
+
+void parseParticle(xmlNode *node, Particle *particle) {
+    xmlNode *cur_node = NULL;
+    particle->num_dimensions = 0;
+    particle->num_neighbors = 0;
+    particle->dimensions = NULL;
+    particle->neighbor_ids = NULL;
+
+    for (cur_node = node->children; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            if (xmlStrcmp(cur_node->name, (const xmlChar *)"id") == 0) {
+                particle->id = atoi((const char *)xmlNodeGetContent(cur_node));
+            } else if (xmlStrcmp(cur_node->name, (const xmlChar *)"dimension") == 0) {
+                particle->num_dimensions++;
+                particle->dimensions = realloc(particle->dimensions, particle->num_dimensions * sizeof(double));
+                particle->dimensions[particle->num_dimensions - 1] = atof((const char *)xmlNodeGetContent(cur_node));
+            } else if (xmlStrcmp(cur_node->name, (const xmlChar *)"neighbor_id") == 0) {
+                particle->num_neighbors++;
+                particle->neighbor_ids = realloc(particle->neighbor_ids, particle->num_neighbors * sizeof(int));
+                particle->neighbor_ids[particle->num_neighbors - 1] = atoi((const char *)xmlNodeGetContent(cur_node));
+            }
+        }
+    }
+}
+
+void parseParticleSystem(xmlNode *node, ParticleSystem *particleSystem) {
+    xmlNode *cur_node = NULL;
+    particleSystem->num_particles = 0;
+    particleSystem->particles = NULL;
+
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE && xmlStrcmp(cur_node->name, (const xmlChar *)"particle") == 0) {
+            particleSystem->num_particles++;
+            particleSystem->particles = realloc(particleSystem->particles, particleSystem->num_particles * sizeof(Particle));
+            parseParticle(cur_node, &particleSystem->particles[particleSystem->num_particles - 1]);
+        }
+    }
+}
+
+int main(void) {
+    // Initialize the library and check potential ABI mismatches
+    LIBXML_TEST_VERSION
+
+    // Read the entire stdin into a buffer
+    char *buffer = NULL;
+    size_t size = 0;
+    size_t capacity = 1024;
+    buffer = (char *)malloc(capacity);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return 1;
+    }
+
+    size_t read_size;
+    while ((read_size = fread(buffer + size, 1, capacity - size, stdin)) > 0) {
+        size += read_size;
+        if (size >= capacity) {
+            capacity *= 2;
+            buffer = (char *)realloc(buffer, capacity);
+            if (!buffer) {
+                fprintf(stderr, "Memory reallocation failed\n");
+                return 1;
+            }
+        }
+    }
+    buffer[size] = '\0'; // Null-terminate the buffer
+
+    // Parse the XML from the buffer
+    xmlDoc *doc = xmlReadMemory(buffer, size, "noname.xml", NULL, 0);
+    if (doc == NULL) {
+        fprintf(stderr, "Failed to parse XML\n");
+        free(buffer);
+        return 1;
+    }
+    free(buffer);
+
+    // Get the root element node
+    xmlNode *root_element = xmlDocGetRootElement(doc);
+
+    // Parse the XML into the ParticleSystem structure
+    ParticleSystem particleSystem;
+    parseParticleSystem(root_element->children, &particleSystem);
+
+    // Print the parsed data
+    for (size_t i = 0; i < particleSystem.num_particles; i++) {
+        Particle p = particleSystem.particles[i];
+        printf("Particle ID: %d\n", p.id);
+        printf("Dimensions: ");
+        for (size_t j = 0; j < p.num_dimensions; j++) {
+            printf("%f ", p.dimensions[j]);
+        }
+        printf("\nNeighbors: ");
+        for (size_t j = 0; j < p.num_neighbors; j++) {
+            printf("%d ", p.neighbor_ids[j]);
+        }
+        printf("\n");
+    }
+
+    // Free the parsed data
+    for (size_t i = 0; i < particleSystem.num_particles; i++) {
+        free(particleSystem.particles[i].dimensions);
+        free(particleSystem.particles[i].neighbor_ids);
+    }
+    free(particleSystem.particles);
+
+    // Free the document
+    xmlFreeDoc(doc);
+
+    // Cleanup function for the XML library
+    xmlCleanupParser();
+
+    return 0;
+}

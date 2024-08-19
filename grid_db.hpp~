@@ -1,0 +1,227 @@
+#include<iostream>
+#include<unordered_map>
+#include<unordered_set>
+#include<string>
+#include<random>
+#include<cmath>
+#include<vector>
+#include <thread>
+#include <chrono>
+
+
+
+using namespace std;
+
+
+
+double grid_size = 5.0;
+
+
+random_device rd;
+mt19937 gen(rd());
+
+double cubic_function(double x, double a, double b, double base_number) {
+    return a * pow(x - base_number, 3) + b;
+}
+
+void set_grid_size(double value){
+
+  grid_size=value;
+
+}
+
+
+void print_stats(){
+
+  cout<<endl;
+
+  cout<<"Grid Size: " << grid_size<<endl;
+  
+
+}
+
+
+double neg_zero(double val) {
+    return val == 0.0 ? 0.0 : val;
+}
+
+
+
+struct Key {
+    double x, y, z;
+
+    bool operator==(const Key &other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+};
+
+struct KeyHash {
+    std::size_t operator()(const Key &k) const {
+        std::size_t hx = std::hash<double>{}(k.x);
+        std::size_t hy = std::hash<double>{}(k.y);
+        std::size_t hz = std::hash<double>{}(k.z);
+        return hx ^ (hy << 1) ^ (hz << 2); 
+    }
+};
+
+std::unordered_map<Key, std::unordered_set<long>, KeyHash> m;
+
+
+void clear_grid(){
+  m.clear();
+}
+
+
+Key generate_key(double x, double y, double z) {
+    double round_x = neg_zero(round(x * grid_size) / grid_size);
+    double round_y = neg_zero(round(y * grid_size) / grid_size);
+    double round_z = neg_zero(round(z * grid_size) / grid_size);
+    return Key{round_x, round_y, round_z};
+}
+
+
+vector<double> get_pressure(double x, double y, double z){
+
+  
+  vector <double> pressure;
+  
+
+  Key key =  generate_key(x,y,z); 
+  if(m.find(key) != m.end() ){
+  unordered_set<long>& value =m[key];
+
+
+  double pressure_gradient= value.size()> 3 ? -0.1 : 0.1;
+  
+
+  if(value.size()>2){
+  cout<< value.size() << endl;
+  }
+  pressure.push_back( x * pressure_gradient);
+  pressure.push_back( y * pressure_gradient);
+  pressure.push_back( z * pressure_gradient);
+  }
+
+  return pressure; 
+
+}
+
+
+
+void insert_location(long id, double x, double y, double z) {
+
+  
+       Key key = generate_key(x, y, z);
+       m[key].insert(id);
+
+ 
+ }
+
+
+
+
+
+void grid_average(double size){
+
+  double total_iterations=0;
+  double filled_grid=0;
+  double empty_grid=0;
+  double total_points=0;
+
+  
+  for(double i=-size; i < size; i+=1/grid_size){
+    for(double j= -size; j< size; j+=1/grid_size){
+      for(double k= -size; k< size; k+=1/grid_size ){
+
+
+	vector<double> value = get_pressure(i,j,k);
+
+	
+	if(value.empty()){ empty_grid++; }
+	else{
+	  filled_grid++;
+  
+	}
+
+	total_iterations++;
+      }
+
+    }
+
+  }
+
+
+  for(const auto& val: m){
+
+    unordered_set<long> set = val.second;
+
+    for(const auto& id: set){
+
+      total_points++;
+      
+    }
+
+
+  }
+
+  
+  cout<<"Total iterations: " << total_iterations<<endl;
+  cout<<"Found Girds per iteration: "<<(filled_grid/total_iterations)<<endl;
+  cout<<"Average empty grids: "  << (empty_grid/total_iterations)<<endl;
+  cout<<"Total points in system: " <<total_points<<endl;
+  
+  
+  return;
+
+
+}
+
+
+
+
+vector<double> test_grid_db(){
+
+
+  m.clear();
+
+
+  normal_distribution<float> d(0.0,1.0);
+
+
+ long id = 0;
+
+ chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+ for(int i=0 ; i < 1000000; i++){
+
+
+   double x =d(gen);
+   double y =d(gen);
+   double z =d(gen);
+   id++;
+
+   insert_location(id, x, y ,z); 
+
+
+ }
+
+ chrono::steady_clock::time_point end = chrono::steady_clock::now();
+ cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" << endl;
+
+
+ cout<<id << " last id\n "<<endl;
+
+   
+ double x = 0.0;
+ double y = 0.0;
+ double z = 0.0;
+
+
+
+ 
+
+ return get_pressure(x,y,z);
+
+}
+
+

@@ -1,0 +1,67 @@
+
+#include<vector>
+#include<random>
+#include "grid.hpp"
+
+using namespace std;
+
+
+struct particle{
+  long id;
+  double x;
+  double y;
+  double z;
+
+  double x_momentum;
+  double y_momentum;
+  double z_momentum;
+};
+
+
+vector<particle> particle_list;
+
+
+void create_particle(int particle_num){
+
+  random_device rd;
+  mt19937 gen(rd());
+  normal_distribution<float> d(0.0,1.0);
+
+  
+  for(int i=0; i<particle_num; i++){
+
+    particle p;
+    p.id = i;
+    p.x=gen(d);
+    p.y=gen(d);
+    p.z=gen(d);
+
+
+    p.x_momentum=0.0;
+    p.y_momentum=0.0;
+    p.z_momentum=0.0;
+
+  }
+  
+}
+
+
+void store_particle_in_grid(){
+
+  for(const auto &p: particle_list ){
+
+    insert_location(p.id,
+		    p.x,
+		    p.y,
+		    p.z);
+     }
+ 
+
+}
+
+
+
+void move_particle(){
+
+
+}

@@ -1,0 +1,16 @@
+#include "particle_system.h"
+
+
+int main(int argc, char *argv[] ){
+
+  int num_particles = 10;
+
+  particle particles[num_particles];
+
+  init_particles( particles, truncated_normal, random_color, num_particles);
+  
+
+  
+  return 0;
+
+}

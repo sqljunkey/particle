@@ -1,0 +1,309 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<math.h>
+#include<time.h>
+#include<sys/time.h>
+#include<string.h>
+
+
+typedef struct{
+  double x;
+  double y;
+  double z;
+  double x_momentum;
+  double y_momentum;
+  double z_momentum;
+  double mass;
+  char *color;
+  int *neigbor_list;
+  int neighbor_list_size; 
+}particle;
+
+ 
+
+particle *particles;
+int num_particles;
+int **neighbor_matrix; 
+
+
+char* random_color() {
+       
+    int random_num = rand() % 3;
+
+   
+    switch (random_num) {
+        case 0:
+            return "GREEN";
+        case 1:
+            return "BLUE";
+        case 2:
+            return "RED";
+        default:
+            return "UNKNOWN"; 
+    }
+}
+
+
+double truncated_normal(double mean, double std) {
+    
+    const double pi = 3.14159265358979323846;
+    double x, y, z;
+
+    do {
+       
+        x = 2.0 * rand() / (RAND_MAX + 1.0) - 1.0;
+        y = 2.0 * rand() / (RAND_MAX + 1.0) - 1.0;
+        z = x * x + y * y;
+    } while (z >= 1.0 || z == 0.0);
+
+   
+    return mean + std * x * sqrt(-2.0 * log(z) / z);
+}
+
+void init_particles( ){
+
+    for(int i=0; i < num_particles; i++){
+
+   
+    particles[i].x = truncated_normal(0.0, 100.0);
+    particles[i].y = truncated_normal(0.0, 100.0);
+    particles[i].z = truncated_normal(0.0, 100.0);
+    
+    particles[i].x_momentum =0.0;
+    particles[i].y_momentum =0.0;
+    particles[i].z_momentum =0.0;
+
+    particles[i].mass = 1.0;
+    particles[i].color = random_color();
+    particles[i].neighbor_list = NULL;
+    particles[i].neighbor_list_size = 0;
+
+    
+  }
+
+    neighbor_matrix = malloc(num_particles * sizeof(int *));
+    if (neighbor_matrix == NULL) {
+
+        perror("Failed to allocate memory for neighbor_matrix");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < num_particles; i++) {
+        neighbor_matrix[i] = malloc(num_particles * sizeof(int));
+        if (neighbor_matrix[i] == NULL) {
+           
+            perror("Failed to allocate memory for neighbor_matrix[i]");
+            exit(EXIT_FAILURE);
+        }
+        
+       
+        for (int j = 0; j < num_particles; j++) {
+            neighbor_matrix[i][j] = 0;
+        }
+    }
+
+    
+
+}
+
+
+
+
+double newton_potential(double distance) {
+  double newton = 0.0;
+
+    if (distance > 10.0) {
+
+	newton = 1.0 / pow(distance,2.0);
+
+	}
+
+
+  return newton;
+}
+
+
+double lennard_jones_potential(double distance) {
+
+		double lj_pot_1 = 0.0;
+		double lj_pot_2 = 0.0;
+		double diff = 1E1;
+
+		double epsilon = 1.1;
+		double sigma = 10.0;
+
+		lj_pot_1 = epsilon * (pow((sigma / (distance - diff)), 2.0) - 2.0 * pow((sigma / (distance - diff)), 1.0));
+		lj_pot_2 = epsilon * (pow((sigma / (distance)), 2.0) - 2.0 * pow((sigma / (distance)), 1.0));
+
+		if(distance >30.0) {
+		  
+		        return (lj_pot_2 - lj_pot_1);
+
+		} else {
+			return 0.0;
+		}
+}
+
+
+
+
+double get_distance(particle a, particle b) {
+		
+
+     double distance_x = -a.x + (b.x);
+     double distance_y = -a.y + (b.y);
+     double distance_z = -a.z + (b.z);
+
+     double distance = sqrt( (
+			        pow(distance_x, 2.0)
+			      + pow(distance_y, 2.0)
+			      + pow(distance_z, 2.0)));
+
+     
+     return distance; 
+		
+}
+
+
+double* get_vector(particle a, particle b) {
+    
+    double* vector = (double*)malloc(3 * sizeof(double));
+    if (vector == NULL) {
+        
+        return NULL;
+    }
+
+   
+    double dX = -(a.x) + (b.x);
+    double dY = -(a.y) + (b.y);
+    double dZ = -(a.z) + (b.z);
+
+    
+    vector[0] = dX;
+    vector[1] = dY;
+    vector[2] = dZ;
+
+    return vector;
+}
+
+void update_particle_location(particle* p, double multiplier) {
+    p->x = p->x + p->x_momentum * multiplier;
+    p->y = p->y + p->y_momentum * multiplier;
+    p->z = p->z + p->z_momentum * multiplier;
+}
+
+void update_particle_momentum(particle* p, double decay_ratio, double* vector, double potential) {
+  
+    p->x_momentum = p->x_momentum * decay_ratio + (vector[0] * potential);
+    p->y_momentum = p->y_momentum * decay_ratio + (vector[1] * potential);
+    p->z_momentum = p->z_momentum * decay_ratio + (vector[2] * potential);
+
+   
+}
+
+void print_particle_locations(size_t step, particle *particles, int num_particles ) {
+  printf("Particle locations: %d\n", step);
+    
+    for (size_t i = 0; i < num_particles; i++) {
+      
+        printf("Particle %zu: x = %.6f, y = %.6f, z = %.6f\n"
+	       , i + 1, particles[i].x, particles[i].y, particles[i].z);
+    }
+
+    printf("\n");
+}
+
+
+void add_neighbor(particle *p, int i) {
+   
+    int new_size = p->neighbor_list_size + 1;
+    int *new_list = malloc(new_size * sizeof(int));
+    
+    if (p->neighbor_list != NULL) {
+      
+        memcpy(new_list, p->neighbor_list, p->neighbor_list_size * sizeof(int));
+        free(p->neighbor_list);
+    }
+    
+   
+    new_list[p->neighbor_list_size] = i;
+    p->neighbor_list = new_list;
+    p->neighbor_list_size = new_size;
+}
+
+
+void create_naive_neighbor_list(){
+
+  for(int i=0; i< num_particles; i++){
+
+    
+    for(int j=0; j< num_particles; j++){
+
+      if(i!=j){
+
+	add_neighbor(&particles[i],j);
+
+      }
+    }
+
+  }
+
+}
+
+
+
+void newton_force(int j){
+
+  for(int i = 0; i < particles[j].neighbor_list_size; i++ ){
+
+    double distance = get_distance(particle[j], particle[particle.neighbor_list[i]]);
+    double potential = newton_potential(distance);
+    double *vector  = get_vector(particle[j], particle[particle.neighbor_list[i]]);
+    
+
+  }
+
+}
+
+void traverse(void (*f)(int)){
+
+  for(int i=0; i < num_particles; i++){
+
+    f(i);
+
+  }
+
+}
+
+
+
+
+void write_particle_positions(const char *filename, particle *particles, int num_particles) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file %s\n", filename);
+        return;
+    }
+
+   
+    
+   
+      
+      fprintf(file, "%d\n\n", num_particles);
+      
+      for(int j =0; j <num_particles; j++ ){
+
+	
+       fprintf(file, "%s %.6f %.6f %.6f\n", particles[j].color, particles[j].x, particles[j].y, particles[j].z);
+       
+       
+      }
+
+    
+
+    fclose(file);
+
+    
+
+    
+}

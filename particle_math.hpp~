@@ -1,0 +1,18 @@
+#include<cmath>
+#include "particle"
+
+
+
+
+double get_distance(const particle p, const particle n){
+  double result=0.0;
+
+
+  double dX = -p.x + n.x;
+  double dY = -p.y + n.y;
+  double dZ = -p.z + n.z;
+
+  
+  
+  return result; 
+}

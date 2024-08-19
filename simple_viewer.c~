@@ -1,0 +1,231 @@
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <windows.h>
+
+#define WIDTH 800
+#define HEIGHT 600
+
+#define MAX_POINTS 10000  // Maximum number of points to load from the XYZ file
+
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#define WIDTH 800
+#define HEIGHT 600
+
+#define MAX_POINTS 10000  // Maximum number of points to load from the XYZ file
+
+// Global variables for camera position and angle
+GLfloat cameraX = 0.0f;
+GLfloat cameraY = 0.0f;
+GLfloat cameraZ = 5.0f;
+GLfloat cameraAngleX = 0.0f;
+GLfloat cameraAngleY = 0.0f;
+
+GLfloat zoomStep = 0.1f; // Adjust the zoom speed as needed
+
+
+GLfloat points[MAX_POINTS][3];  // Array to store loaded points
+int numPoints = 0;              // Number of points loaded from XYZ file
+
+// Function to handle mouse wheel events
+void mouse_wheel_callback(int wheel, int direction, int x, int y) {
+    
+        if (direction > 0) {
+            cameraZ -= zoomStep;
+        } else {
+            cameraZ += zoomStep;
+        }
+   
+}
+
+
+double normal_distribution(double mean, double stddev) {
+    // Generate two random numbers u1 and u2 from the uniform distribution [0, 1]
+    double u1 = (double) rand() / RAND_MAX;
+    double u2 = (double) rand() / RAND_MAX;
+
+    // Apply the Box-Muller transform to generate a normal distribution
+    double z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
+
+    // Scale and shift the generated value to the desired mean and standard deviation
+    return mean + z0 * stddev;
+}
+
+// Function to handle keyboard input
+void key_callback(unsigned char key, int x, int y) {
+    GLfloat moveSpeed = 0.1f; // Adjust the movement speed as needed
+
+    switch (key) {
+        case 'w': // Move forward
+            cameraX -= moveSpeed * sin(cameraAngleY);
+            cameraY += moveSpeed * sin(cameraAngleX);
+            cameraZ -= moveSpeed * cos(cameraAngleY);
+            break;
+        case 's': // Move backward
+            cameraX += moveSpeed * sin(cameraAngleY);
+            cameraY -= moveSpeed * sin(cameraAngleX);
+            cameraZ += moveSpeed * cos(cameraAngleY);
+            break;
+        case 'a': // Move left
+            cameraX -= moveSpeed * cos(cameraAngleY);
+            cameraZ -= moveSpeed * sin(cameraAngleY);
+            break;
+        case 'd': // Move right
+            cameraX += moveSpeed * cos(cameraAngleY);
+            cameraZ += moveSpeed * sin(cameraAngleY);
+            break;
+    }
+
+    glutPostRedisplay();
+}
+
+// Function to load points from XYZ file
+void loadXYZ(const char* filename) {
+
+
+  
+  for(int i = 0; i < 9000; i++){
+    
+
+     points[i][0]=normal_distribution(0.0f,0.001f);
+     points[i][1]=normal_distribution(0.0f,0.001f);
+     points[i][2]=normal_distribution(0.0f,0.001f);
+
+     
+     numPoints++;
+  }
+   
+    
+    
+
+    
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Failed to open XYZ file: %s\n", filename);
+	 return;
+    }
+
+    // Read points from file
+    GLfloat x, y, z;
+    while (fscanf(file, "%f %f %f", &x, &y, &z) != EOF && numPoints < MAX_POINTS) {
+        points[numPoints][0] = x;
+        points[numPoints][1] = y;
+        points[numPoints][2] = z;
+        numPoints++;
+    }
+
+    fclose(file);
+
+ 
+}
+
+// Function to draw points
+void drawPoints() {
+    glBegin(GL_POINTS);
+    for (int i = 0; i < numPoints; i++) {
+        glVertex3f(points[i][0], points[i][1], points[i][2]);
+    }
+    glEnd();
+}
+
+// Function to animate points
+void animatePoints() {
+
+  Sleep((int)(1000.0f/66.66f));
+  //Jiggle points
+  for(int i = 0; i < numPoints;i++){
+
+    points[i][0]=points[i][0]+normal_distribution(0.0f,0.0001f);
+    points[i][1]=points[i][1]+normal_distribution(0.0f,0.0001f);
+    points[i][2]=points[i][2]+normal_distribution(0.0f,0.0001f);
+
+    if(points[i][0]> 1000.0f ||
+       points[i][1]> 1000.0f ||
+       points[i][2]> 1000.0f){
+      printf("%f\n", points[i][0]);
+
+    }
+  }
+
+ 
+ 
+  glutPostRedisplay();   
+}
+
+// Function to display the scene
+void display() {
+    // Clear the color buffer and depth buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up perspective projection
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45.0f, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 10000.0f);
+
+    // Set up camera position and orientation
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt(cameraX, cameraY, cameraZ, 0.0f, 0.0f, 0.0f, 0.0f, 20.0f, 0.0f);
+
+    // Draw the point cloud
+    glColor3f(1.0f, 1.0f, 1.0f);  // Set color to white
+    drawPoints();
+
+    // Animate points
+    animatePoints();
+
+    // Swap buffers
+    glutSwapBuffers();
+
+       
+}
+
+// Function to initialize OpenGL
+void init() {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);  // Set the clear color to black
+    glEnable(GL_DEPTH_TEST);               // Enable depth testing
+    glEnable(GL_POINT_SMOOTH);             // Enable point smoothing
+}
+
+int main(int argc, char** argv) {
+    // Initialize GLUT
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+    glutInitWindowSize(WIDTH, HEIGHT);
+    glutCreateWindow("OpenGL XYZ Loader");
+
+    // Initialize GLEW
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        fprintf(stderr, "Error initializing GLEW: %s\n", glewGetErrorString(err));
+        return EXIT_FAILURE;
+    }
+
+    // Set the display callback function
+    glutDisplayFunc(display);
+
+    // Set the keyboard callback function
+    glutKeyboardFunc(key_callback);
+
+
+    // Set the mouse wheel callback function
+    glutMouseWheelFunc(mouse_wheel_callback);
+
+    // Load XYZ file
+    loadXYZ("example.xyz");
+
+    // Initialize OpenGL
+    init();
+
+    // Start the main GLUT event loop
+    glutMainLoop();
+
+    return EXIT_SUCCESS;
+}

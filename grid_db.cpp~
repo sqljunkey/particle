@@ -1,0 +1,229 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <fstream>
+
+
+#include "grid_db.hpp"
+
+#pragma comment(lib, "Ws2_32.lib")
+
+using namespace std;
+
+std::atomic<bool> server_running(true);
+
+std::string get_str_between_two_str(const std::string &s,
+        const std::string &start_delim,
+        const std::string &stop_delim)
+{
+    unsigned first_delim_pos = s.find(start_delim);
+    unsigned end_pos_of_first_delim = first_delim_pos + start_delim.length();
+    unsigned last_delim_pos = s.find(stop_delim);
+ 
+    return s.substr(end_pos_of_first_delim,
+            last_delim_pos - end_pos_of_first_delim);
+}
+
+ struct particle {
+
+  long id; 
+  double x;
+  double y;
+  double z;
+
+  double x_momentum;
+  double y_momentum;
+  double z_momentum; 
+
+};
+
+
+vector<particle> particle_list;
+
+void create_particle(int number){
+
+  random_device rd;
+  mt19937 gen(rd());
+  normal_distribution<float> d(0.0,1.0);
+
+  for(int i = 0;i < number; i++){
+
+    particle p;
+
+    p.id = i;
+    
+    p.x = d(gen);
+    p.y = d(gen);
+    p.z = d(gen);
+
+    p.x_momentum = 0.0;
+    p.y_momentum = 0.0;
+    p.z_momentum = 0.0;
+    particle_list.push_back(p);
+
+  }
+
+}
+
+
+void insert_particles_into_grid(){
+  clear_grid();
+
+  for(const auto &p: particle_list){
+
+    insert_location(p.id, p.x,p.y,p.z);
+
+  }
+
+}
+
+void retrieve_pressure(){
+
+  double decay_ratio =1.0;
+  
+  for(auto&p: particle_list){
+
+    vector<double> pressure = get_pressure(p.x, p.y, p.z);
+
+    if(!pressure.empty()){
+      
+      p.x_momentum +=decay_ratio* pressure.at(0);
+      p.y_momentum +=decay_ratio* pressure.at(1);
+      p.z_momentum +=decay_ratio* pressure.at(2);
+
+    }
+  }
+
+}
+
+void update_location(){
+
+  double speed =.0001;
+
+  for(auto &p : particle_list){
+
+    p.x += p.x_momentum* speed;
+    p.y += p.y_momentum* speed;
+    p.z += p.z_momentum* speed;
+
+
+
+  }
+
+}
+
+void write_particle_positions( string filename) {
+
+  
+  ofstream file(filename,std::ios_base::app);
+  
+    if (!file.is_open()) {
+        cerr << "Error opening file " << filename << std::endl;
+        return;
+    }
+
+  
+        file << particle_list.size() << "\n\n";  
+
+        for (const auto &particle : particle_list) {
+            file << "BLUE" << " " 
+                 << particle.x << " " 
+                 << particle.y << " " 
+                 << particle.z << "\n";
+        }
+    
+
+    file.close();
+}
+
+void server(){
+
+
+  create_particle(1000);
+  
+  for(int i = 0 ; i < 1000 ; i++){
+
+    insert_particles_into_grid();
+    retrieve_pressure();
+    update_location();
+    write_particle_positions("weird.xyz");
+
+
+    cout<< i << " rendered frame." << endl;
+
+
+  }
+  
+
+}
+
+double to_double(string a){
+
+  double result = stod(get_str_between_two_str(a, " ","\n"));
+  cout<<"Input: "<<result<<endl; 
+  return result;
+}
+
+int main() {
+
+  server();
+
+  /*
+  std::thread server_thread(server);
+
+
+  string user_input;
+  
+  
+    while (true) {
+
+        cout << "Enter command (type 'help' for list of commands): ";
+        getline(std::cin, user_input);
+
+	if (user_input == "exit") {
+            server_running = false; 
+            break;
+        }else if(user_input == "help" || user_input =="h"){
+	  
+	  cout<<"exit                  : exit server"<<endl;
+	  cout<<"grid_size <number>         : sets grid size"<<endl;
+	  cout<<"stat                  : print values"<<endl;
+	  cout<<"grid_average <number> : prints grid averages"<<endl;
+	  cout<<"test                  : creates a test db"<<endl;
+	  
+	}
+	
+	else if (user_input.find("grid_size") != std::string::npos){
+
+	  set_grid_size(to_double(user_input));
+	  	  
+	}
+        else if (user_input =="stat"){
+	  print_stats();
+	}
+	else if (user_input.find("grid_average") != std::string::npos){
+	  
+         grid_average(to_double(user_input));
+	  
+	}
+	else if (user_input =="test"){
+
+	  test_grid_db();
+	}
+       
+    }
+
+
+    if (server_thread.joinable()) {
+        server_thread.join();
+    }
+  */
+  
+
+  return 0;
+}
