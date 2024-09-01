@@ -15,8 +15,6 @@ typedef struct{
   double z_momentum;
   double mass;
   char *color;
-  int *neighbor_list;
-  int neighbor_list_size; 
 }particle;
 
 
@@ -25,6 +23,8 @@ particle *PARTICLES;
 int NUM_PARTICLES;
 int **NEIGHBOR_MATRIX;
 int **NEIGHBOR_MATRIX_COPY;
+int **BOND_MATRIX;
+int **BOND_MATRIX_COPY;
 double RATIO;
 int NUM_FRAMES;
 
@@ -74,6 +74,17 @@ double truncated_normal(double mean, double std) {
 
 void init_particles( ){
 
+  
+
+    PARTICLES = malloc(NUM_PARTICLES * sizeof(particle));
+
+    if(PARTICLES == NULL){
+      
+        perror("Failed to allocate memory for NEIGHBOR_MATRIX");
+        exit(EXIT_FAILURE);
+
+    }
+    
     for(int i=0; i < NUM_PARTICLES; i++){
 
    
@@ -87,18 +98,21 @@ void init_particles( ){
 
     PARTICLES[i].mass = 1.0;
     PARTICLES[i].color = random_color();
-    PARTICLES[i].neighbor_list = NULL;
-    PARTICLES[i].neighbor_list_size = 0;
+
 
     
   }
 
+
+   
     NEIGHBOR_MATRIX = malloc(NUM_PARTICLES * sizeof(int *));
     if (NEIGHBOR_MATRIX == NULL) {
-
+         
         perror("Failed to allocate memory for NEIGHBOR_MATRIX");
         exit(EXIT_FAILURE);
     }
+
+ 
 
     for (int i = 0; i < NUM_PARTICLES; i++) {
         NEIGHBOR_MATRIX[i] = malloc(NUM_PARTICLES * sizeof(int));
@@ -111,6 +125,30 @@ void init_particles( ){
        
         for (int j = 0; j < NUM_PARTICLES; j++) {
             NEIGHBOR_MATRIX[i][j] = 0;
+        }
+    }
+
+
+        NEIGHBOR_MATRIX_COPY = malloc(NUM_PARTICLES * sizeof(int *));
+    if (NEIGHBOR_MATRIX_COPY == NULL) {
+         
+        perror("Failed to allocate memory for NEIGHBOR_MATRIX");
+        exit(EXIT_FAILURE);
+    }
+
+ 
+
+    for (int i = 0; i < NUM_PARTICLES; i++) {
+        NEIGHBOR_MATRIX_COPY[i] = malloc(NUM_PARTICLES * sizeof(int));
+        if (NEIGHBOR_MATRIX_COPY[i] == NULL) {
+           
+            perror("Failed to allocate memory for NEIGHBOR_MATRIX[i]");
+            exit(EXIT_FAILURE);
+        }
+        
+       
+        for (int j = 0; j < NUM_PARTICLES; j++) {
+            NEIGHBOR_MATRIX_COPY[i][j] = 0;
         }
     }
 
@@ -234,23 +272,6 @@ void print_particle_locations(size_t step, particle *PARTICLES, int num_PARTICLE
 
 
 
-void add_neighbor(particle *p, int i) {
-   
-    int new_size = p->neighbor_list_size + 1;
-    int *new_list = malloc(new_size * sizeof(int));
-    
-    if (p->neighbor_list != NULL) {
-      
-        memcpy(new_list, p->neighbor_list, p->neighbor_list_size * sizeof(int));
-        free(p->neighbor_list);
-    }
-    
-   
-    new_list[p->neighbor_list_size] = i;
-    p->neighbor_list = new_list;
-    p->neighbor_list_size = new_size;
-}
-
 
 
 void free_matrix_copy(){
@@ -267,30 +288,54 @@ void free_matrix_copy(){
   
 }
 
-void create_matrix_copy(){
+void free_particles(){
 
-     NEIGHBOR_MATRIX_COPY= malloc(NUM_PARTICLES * sizeof(int *));
-    if (NEIGHBOR_MATRIX_COPY == NULL) {
+  free(PARTICLES);
 
-        perror("Failed to allocate memory for NEIGHBOR_MATRIX");
-        exit(EXIT_FAILURE);
+}
+
+void free_matrix(){
+
+    for(int i=0; i < NUM_PARTICLES; i++){
+
+      free(NEIGHBOR_MATRIX[i]);
+
     }
+
+  free(NEIGHBOR_MATRIX);
+  
+
+}
+
+void make_matrix_copy(){
+
 
 
         for (int i = 0; i < NUM_PARTICLES; i++) {
-        NEIGHBOR_MATRIX_COPY[i] = malloc(NUM_PARTICLES * sizeof(int));
-        if (NEIGHBOR_MATRIX_COPY[i] == NULL) {
-           
-            perror("Failed to allocate memory for NEIGHBOR_MATRIX[i]");
-            exit(EXIT_FAILURE);
-        }
 
+	  for(int j=0; j < NUM_PARTICLES; j++){
 
-	 memcpy(NEIGHBOR_MATRIX_COPY[i], NEIGHBOR_MATRIX[i], NUM_PARTICLES * sizeof(int));
-       
-      
+	    NEIGHBOR_MATRIX_COPY[i][j]=NEIGHBOR_MATRIX[i][j];
+
+	  }
+            
     }
 
+
+}
+
+
+void reset_neighbor_list(){
+
+  for(int i =0; i < NUM_PARTICLES; i++){
+
+    for(int j =0; j < NUM_PARTICLES; j++){
+
+      NEIGHBOR_MATRIX[i][j] = 0;
+
+    }
+  }
+  
 
 }
 
@@ -304,7 +349,7 @@ void create_naive_neighbor_list(){
 
       if(i!=j){
 
-	add_neighbor(&PARTICLES[i],j);
+
 	NEIGHBOR_MATRIX[i][j]=1;
 
       }
@@ -330,7 +375,7 @@ void create_distance_based_neighbor_list(double radius){
 
 	double distance = get_distance(PARTICLES[i], PARTICLES[j]);
 	if(distance<=radius){
-	  add_neighbor(&PARTICLES[i],j);
+	 
 	  NEIGHBOR_MATRIX[i][j]=1;
 	  
 	}
@@ -349,27 +394,30 @@ void create_distance_based_neighbor_list(double radius){
 
 void newton_force(int j){
 
-  for(int i = 0; i < PARTICLES[j].neighbor_list_size; i++ ){
+  for(int i = 0; i < NUM_PARTICLES; i++ ){
 
-     if(NEIGHBOR_MATRIX_COPY[j][i]==1){
+
+  //if there is an edge connecting the particles;
+    
+  if(NEIGHBOR_MATRIX_COPY[j][i]==1){
 
     particle p_j = PARTICLES[j];
-    particle p_i = PARTICLES[p_j.neighbor_list[i]];
-
-    int loc = p_j.neighbor_list[loc]; 
+    particle p_i = PARTICLES[i];
 
     double distance  = get_distance(p_j, p_i);
     double potential = newton_potential(distance);
     double *vector   = get_vector(p_j, p_i);
     
 
-    PARTICLES[loc].x_momentum = PARTICLES[i].x_momentum + (vector[0] * potential);
-    PARTICLES[loc].y_momentum = PARTICLES[i].y_momentum + (vector[1] * potential);
-    PARTICLES[loc].z_momentum = PARTICLES[i].z_momentum + (vector[2] * potential);
+    PARTICLES[i].x_momentum = PARTICLES[i].x_momentum + -(vector[0] * potential);
+    PARTICLES[i].y_momentum = PARTICLES[i].y_momentum + -(vector[1] * potential);
+    PARTICLES[i].z_momentum = PARTICLES[i].z_momentum + -(vector[2] * potential);
 
-    PARTICLES[j].x_momentum = PARTICLES[j].x_momentum + -(vector[0] * potential);
-    PARTICLES[j].y_momentum = PARTICLES[j].y_momentum + -(vector[1] * potential);
-    PARTICLES[j].z_momentum = PARTICLES[j].z_momentum + -(vector[2] * potential);
+    PARTICLES[j].x_momentum = PARTICLES[j].x_momentum + (vector[0] * potential);
+    PARTICLES[j].y_momentum = PARTICLES[j].y_momentum + (vector[1] * potential);
+    PARTICLES[j].z_momentum = PARTICLES[j].z_momentum + (vector[2] * potential);
+
+   
     
 
     NEIGHBOR_MATRIX_COPY[i][j]=0;
@@ -380,7 +428,14 @@ void newton_force(int j){
 }
 
 
+void move(int j){
 
+  PARTICLES[j].x =PARTICLES[j].x + RATIO * PARTICLES[j].x_momentum;
+  PARTICLES[j].y =PARTICLES[j].y + RATIO * PARTICLES[j].y_momentum;
+  PARTICLES[j].z =PARTICLES[j].z + RATIO * PARTICLES[j].z_momentum;
+
+
+}
 
 
 
@@ -398,7 +453,7 @@ void traverse(void (*f)(int)){
 
 
 void write_particle_positions(const char *filename) {
-    FILE *file = fopen(filename, "w");
+    FILE *file = fopen(filename, "a");
     if (file == NULL) {
         fprintf(stderr, "Error opening file %s\n", filename);
         return;
@@ -412,7 +467,7 @@ void write_particle_positions(const char *filename) {
       
       for(int j =0; j <NUM_PARTICLES; j++ ){
 
-	
+       
        fprintf(file, "%s %.6f %.6f %.6f\n", PARTICLES[j].color, PARTICLES[j].x, PARTICLES[j].y, PARTICLES[j].z);
        
        
@@ -425,4 +480,15 @@ void write_particle_positions(const char *filename) {
     
 
     
+}
+
+
+void delete_file(const char *filename){
+
+    if (remove(filename) == 0)
+        printf("Deleted successfully\n");
+    else
+        printf("Unable to delete the file\n");
+ 
+
 }
