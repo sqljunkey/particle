@@ -1,3 +1,3 @@
-particle simulation
+#particle simulation
 
-![alt-text](https://github.com/sqljunkey/particle/animation.gif)
+![alt-text](animation.gif)
