@@ -1,0 +1,69 @@
+#include "particle_system.h"
+
+
+int main(int argc, char *argv[] ){
+
+
+
+  SPREAD = 20.0;
+  NUM_PARTICLES =200;
+  RATIO = 0.0000001f;
+  BOND_RATIO=.000001f;
+  DECAY_RATIO=0.9999f;
+  NUM_FRAMES = 40000;
+  const char *filename = "file.xyz";
+  int counter = 0;
+  /* init particles*/
+  
+  init_particles();
+  delete_file(filename); 
+
+
+  /* loop through frames */
+
+  double start_time = omp_get_wtime();
+
+  create_naive_bond_list(50);
+ 
+  for(int i =0; i < NUM_FRAMES; i++ ){
+
+    // printf("Frame: %d\n",i);
+    /* all even frames create new neighbor list */
+
+    if(i % 2) {
+
+      create_naive_neighbor_list();
+          
+
+    }
+
+    /* delete old edge-matrix copy, create new edge matrix copy */ 
+      
+   
+    make_bond_matrix_copy();
+    make_matrix_copy();
+    
+    /* apply force to all particles in system. */
+
+    counter++;
+    traverse(newton_force);
+    traverse(bond_force);
+    traverse(move_bond); 
+    if(counter > 8){
+    write_particle_positions(filename);
+
+    counter =0;
+    }
+    
+  }
+
+    double end_time = omp_get_wtime();
+    printf("Execution time: %f seconds\n", end_time - start_time);
+  
+  free_resources();
+
+  printf("Success\n");
+  
+  return 0;
+
+}

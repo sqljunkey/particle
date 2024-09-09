@@ -5,8 +5,9 @@ int main(int argc, char *argv[] ){
 
 
 
-  NUM_PARTICLES =100;
-  RATIO = 1.0f;
+ 
+  NUM_PARTICLES =1000;
+  RATIO = .01f;
   NUM_FRAMES = 1000;
   const char *filename = "file.xyz";
 
@@ -18,10 +19,11 @@ int main(int argc, char *argv[] ){
 
   /* loop through frames */
 
+  double start_time = omp_get_wtime();
  
   for(int i =0; i < NUM_FRAMES; i++ ){
 
-    printf("Frame: %d\n",i);
+    // printf("Frame: %d\n",i);
     /* all even frames create new neighbor list */
 
     if(i % 2) {
@@ -38,17 +40,18 @@ int main(int argc, char *argv[] ){
     
     /* apply force to all particles in system. */
    
-    traverse(newton_force);
+    traverse(lennard_force);
     traverse(move); 
     
     write_particle_positions(filename);
 
     
   }
+
+    double end_time = omp_get_wtime();
+    printf("Execution time: %f seconds\n", end_time - start_time);
   
-  free_matrix_copy();
-  free_matrix();
-  free_particles();
+  free_resources();
 
   printf("Success\n");
   
